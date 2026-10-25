@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>n8n-workflow-tests: how it works</title>
+<!-- Source of docs/how-it-works.png. Every count is from `npm test` in this repo (45 tests: logic 15, workflow 12,
+     replay 8, deploy 10). Render with headless Edge at 1600x820, scale 2 (see README-STYLE in the profile notes). -->
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=block" rel="stylesheet">
+<style>
+  :root { --paper:#f4f1ea; --wash:#ebe6da; --ink:#1d1d1d; --dim:#5a5750; --red:#c4161c; --rule:#d9d3c5; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1600px; height: 820px; background: var(--paper); color: var(--ink); font-family: Archivo, Arial, sans-serif; }
+  .page { padding: 52px 64px 0; }
+  .label { font-family: "IBM Plex Mono", monospace; font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+  h1 { font-weight: 800; font-size: 52px; letter-spacing: -0.02em; margin: 14px 0 10px; }
+  .sub { font-size: 21px; color: var(--dim); line-height: 1.45; max-width: 1400px; }
+  .sub b { color: var(--ink); font-weight: 600; }
+  .flow { margin-top: 26px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-family: "IBM Plex Mono", monospace; font-size: 15px; color: var(--dim); }
+  .pill { background: #fbf9f4; border: 1.5px solid var(--rule); border-radius: 999px; padding: 7px 14px; color: var(--ink); }
+  .pill.code { border-color: var(--red); }
+  .arr { color: var(--ink); }
+  .key { margin-left: 8px; font-size: 13.5px; color: var(--red); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; margin-top: 30px; }
+  .card { background: #fbf9f4; border: 1.5px solid var(--rule); border-radius: 14px; padding: 22px 22px 20px; display: flex; flex-direction: column; min-height: 440px; }
+  .num { width: 36px; height: 36px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 800; font-size: 18px; display: grid; place-items: center; box-shadow: 0 0 0 3px #fff, 0 0 0 4.5px var(--red); }
+  h2 { font-size: 23px; font-weight: 800; line-height: 1.2; margin: 18px 0 12px; letter-spacing: -0.01em; }
+  .what { font-size: 16.5px; line-height: 1.45; }
+  ul { list-style: none; margin-top: 14px; display: flex; flex-direction: column; gap: 9px; }
+  li { font-size: 15px; line-height: 1.4; color: var(--dim); padding-left: 16px; position: relative; }
+  li::before { content: ""; position: absolute; left: 0; top: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--red); }
+  .count { margin-top: auto; padding-top: 16px; border-top: 1.5px solid var(--rule); font-family: "IBM Plex Mono", monospace; font-size: 14px; color: var(--dim); }
+  .count b { font-family: Archivo, sans-serif; font-size: 30px; font-weight: 800; color: var(--ink); margin-right: 6px; }
+  .foot { display: flex; justify-content: space-between; margin: 22px 64px 0; font-family: "IBM Plex Mono", monospace; font-size: 14px; color: var(--dim); }
+  .foot b { color: var(--ink); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="label">n8n-workflow-tests &nbsp;·&nbsp; a stand-in for a private task tracker</div>
+  <h1>One Slack button, tested before it reaches n8n</h1>
+  <p class="sub">A toy n8n workflow: approve or reject a request from a Slack button. <b>45 tests</b> run with plain Node, no n8n server and no packages to install.</p>
+  <div class="flow"><span class="pill">Slack click</span><span class="arr">→</span><span class="pill">Ack</span><span class="arr">→</span><span class="pill code">Raw body</span><span class="arr">→</span><span class="pill">Sign</span><span class="arr">→</span><span class="pill code">Verify+route</span><span class="arr">→</span><span class="pill">Valid?</span><span class="arr">→</span><span class="pill">Save event</span><span class="arr">→</span><span class="pill code">Build reply</span><span class="arr">→</span><span class="pill">Update card</span><span class="key">red outline: a Code node, its JavaScript kept in logic/</span></div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="num">1</div>
+      <h2>The Code nodes run in Node</h2>
+      <p class="what">The JavaScript lives in logic/. Tests run the exact text the workflow file gives n8n.</p>
+      <ul>
+        <li>A good Slack signature passes; a wrong, missing or old one is refused</li>
+        <li>Each button maps to one outcome</li>
+        <li>Clicks from anyone else are dropped</li>
+      </ul>
+      <div class="count"><b>15</b>tests</div>
+    </div>
+
+    <div class="card">
+      <div class="num">2</div>
+      <h2>The workflow file is checked</h2>
+      <p class="what">The JSON is tested as committed, before any deploy.</p>
+      <ul>
+        <li>Node order, node types, Slack answered first</li>
+        <li>Credentials by name; secrets only as placeholders</li>
+        <li>Each Code node equals a fresh build from logic/</li>
+      </ul>
+      <div class="count"><b>12</b>tests</div>
+    </div>
+
+    <div class="card">
+      <div class="num">3</div>
+      <h2>A signed click is replayed</h2>
+      <p class="what">A script signs a recorded click the way Slack does and posts it to the webhook.</p>
+      <ul>
+        <li>Pass: 200 in under a second and exactly one new event</li>
+        <li>The same click with a wrong secret writes nothing</li>
+        <li>A 200 that saved nothing is a failure</li>
+      </ul>
+      <div class="count"><b>8</b>tests</div>
+    </div>
+
+    <div class="card">
+      <div class="num">4</div>
+      <h2>Deploys run from a script</h2>
+      <p class="what">One command creates or updates the workflow through the n8n API.</p>
+      <ul>
+        <li>A second run updates by name: no "(copy)"</li>
+        <li>Values come from .env and are never printed</li>
+        <li>An error that echoes a key is shown without it</li>
+      </ul>
+      <div class="count"><b>10</b>tests</div>
+    </div>
+  </div>
+</div>
+<div class="foot"><span><b>npm test</b> &nbsp;·&nbsp; Node 22+, built-in test runner</span><span>Manveen Singh &nbsp;·&nbsp; manveen.me</span></div>
+</body>
+</html>

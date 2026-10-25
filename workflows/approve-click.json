@@ -1,0 +1,267 @@
+{
+  "name": "Approve click",
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Slack click",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "approve-click",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "00000000-0000-4000-9000-000000000001"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "name": "Ack",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "name": "Raw body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Code-node logic for the \"Approve click\" workflow. n8n gets this file's text plus one call line per Code node\n// (scripts/build.mjs writes them into workflows/approve-click.json); the tests run that same text in Node.\n// Plain functions only: a Code node can't import or export.\n\nconst MAX_AGE_S = 300; // Slack's advice: refuse requests more than five minutes from now, so old ones can't be replayed\nconst OUTCOMES = { approve: 'approved', reject: 'rejected' };\n\n// Compares every character, so the time taken doesn't tell an attacker how much of a signature was right.\nfunction sameText(a, b) {\n  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;\n  let diff = 0;\n  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);\n  return diff === 0;\n}\n\n// Slack posts a button click as a form: payload=<url-encoded JSON>.\nfunction parsePayload(raw) {\n  const m = /(?:^|&)payload=([^&]*)/.exec(raw || '');\n  if (!m) return null;\n  try {\n    return JSON.parse(decodeURIComponent(m[1].replace(/\\+/g, ' ')));\n  } catch (e) {\n    return null;\n  }\n}\n\n// click: the raw body and Slack's two headers (Raw body node) plus `sig`, the HMAC the Sign node computed.\nfunction verifyAndRoute(click, nowMs, allowedUser) {\n  const ts = Number(click.ts);\n  if (!Number.isFinite(ts) || Math.abs(nowMs / 1000 - ts) > MAX_AGE_S) return { ok: false, reason: 'stale timestamp' };\n  if (!click.sig || !sameText(click.signature, 'v0=' + click.sig)) return { ok: false, reason: 'bad signature' };\n  const p = parsePayload(click.raw);\n  if (!p || p.type !== 'block_actions' || !Array.isArray(p.actions) || !p.actions.length) {\n    return { ok: false, reason: 'not a button click' };\n  }\n  const user = (p.user || {}).id;\n  if (user !== allowedUser) return { ok: false, reason: 'not the allowed user' };\n  const action = p.actions[0];\n  const outcome = OUTCOMES[action.action_id];\n  if (!outcome) return { ok: false, reason: 'unknown button' };\n  return {\n    ok: true,\n    response_url: p.response_url,\n    event: {\n      id: `${action.action_ts}-${user}`,\n      request: action.value,\n      outcome,\n      by: user,\n      at: new Date(nowMs).toISOString(),\n    },\n  };\n}\n\nfunction buildReply(route) {\n  const e = route.event;\n  return { replace_original: true, text: `Request ${e.request} ${e.outcome} by <@${e.by}>.` };\n}\n\n// One entry point per Code node.\nasync function nodeRawBody(items, helpers) {\n  const h = items[0].json.headers || {};\n  const raw = (await helpers.getBinaryDataBuffer(0, 'data')).toString('utf8');\n  return [{ json: { raw, ts: h['x-slack-request-timestamp'] || '', signature: h['x-slack-signature'] || '' } }];\n}\n\nfunction nodeVerifyRoute(items, nowMs, allowedUser) {\n  return [{ json: verifyAndRoute(items[0].json, nowMs, allowedUser) }];\n}\n\nfunction nodeBuildReply(route) {\n  return [{ json: buildReply(route) }];\n}\n\nreturn await nodeRawBody($input.all(), this.helpers);\n"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "name": "Sign",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "value": "={{ 'v0:' + $json.ts + ':' + $json.raw }}",
+        "dataPropertyName": "sig",
+        "secret": "__SLACK_SIGNING_SECRET__",
+        "encoding": "hex"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "name": "Verify+route",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Code-node logic for the \"Approve click\" workflow. n8n gets this file's text plus one call line per Code node\n// (scripts/build.mjs writes them into workflows/approve-click.json); the tests run that same text in Node.\n// Plain functions only: a Code node can't import or export.\n\nconst MAX_AGE_S = 300; // Slack's advice: refuse requests more than five minutes from now, so old ones can't be replayed\nconst OUTCOMES = { approve: 'approved', reject: 'rejected' };\n\n// Compares every character, so the time taken doesn't tell an attacker how much of a signature was right.\nfunction sameText(a, b) {\n  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;\n  let diff = 0;\n  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);\n  return diff === 0;\n}\n\n// Slack posts a button click as a form: payload=<url-encoded JSON>.\nfunction parsePayload(raw) {\n  const m = /(?:^|&)payload=([^&]*)/.exec(raw || '');\n  if (!m) return null;\n  try {\n    return JSON.parse(decodeURIComponent(m[1].replace(/\\+/g, ' ')));\n  } catch (e) {\n    return null;\n  }\n}\n\n// click: the raw body and Slack's two headers (Raw body node) plus `sig`, the HMAC the Sign node computed.\nfunction verifyAndRoute(click, nowMs, allowedUser) {\n  const ts = Number(click.ts);\n  if (!Number.isFinite(ts) || Math.abs(nowMs / 1000 - ts) > MAX_AGE_S) return { ok: false, reason: 'stale timestamp' };\n  if (!click.sig || !sameText(click.signature, 'v0=' + click.sig)) return { ok: false, reason: 'bad signature' };\n  const p = parsePayload(click.raw);\n  if (!p || p.type !== 'block_actions' || !Array.isArray(p.actions) || !p.actions.length) {\n    return { ok: false, reason: 'not a button click' };\n  }\n  const user = (p.user || {}).id;\n  if (user !== allowedUser) return { ok: false, reason: 'not the allowed user' };\n  const action = p.actions[0];\n  const outcome = OUTCOMES[action.action_id];\n  if (!outcome) return { ok: false, reason: 'unknown button' };\n  return {\n    ok: true,\n    response_url: p.response_url,\n    event: {\n      id: `${action.action_ts}-${user}`,\n      request: action.value,\n      outcome,\n      by: user,\n      at: new Date(nowMs).toISOString(),\n    },\n  };\n}\n\nfunction buildReply(route) {\n  const e = route.event;\n  return { replace_original: true, text: `Request ${e.request} ${e.outcome} by <@${e.by}>.` };\n}\n\n// One entry point per Code node.\nasync function nodeRawBody(items, helpers) {\n  const h = items[0].json.headers || {};\n  const raw = (await helpers.getBinaryDataBuffer(0, 'data')).toString('utf8');\n  return [{ json: { raw, ts: h['x-slack-request-timestamp'] || '', signature: h['x-slack-signature'] || '' } }];\n}\n\nfunction nodeVerifyRoute(items, nowMs, allowedUser) {\n  return [{ json: verifyAndRoute(items[0].json, nowMs, allowedUser) }];\n}\n\nfunction nodeBuildReply(route) {\n  return [{ json: buildReply(route) }];\n}\n\nreturn nodeVerifyRoute($input.all(), Date.now(), '__ALLOWED_USER__');\n"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "00000000-0000-4000-a000-000000000001",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "name": "Save event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "__EVENTS_URL__",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.event) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "__EVENTS_CRED_ID__",
+          "name": "Events API"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "name": "Build reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Code-node logic for the \"Approve click\" workflow. n8n gets this file's text plus one call line per Code node\n// (scripts/build.mjs writes them into workflows/approve-click.json); the tests run that same text in Node.\n// Plain functions only: a Code node can't import or export.\n\nconst MAX_AGE_S = 300; // Slack's advice: refuse requests more than five minutes from now, so old ones can't be replayed\nconst OUTCOMES = { approve: 'approved', reject: 'rejected' };\n\n// Compares every character, so the time taken doesn't tell an attacker how much of a signature was right.\nfunction sameText(a, b) {\n  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;\n  let diff = 0;\n  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);\n  return diff === 0;\n}\n\n// Slack posts a button click as a form: payload=<url-encoded JSON>.\nfunction parsePayload(raw) {\n  const m = /(?:^|&)payload=([^&]*)/.exec(raw || '');\n  if (!m) return null;\n  try {\n    return JSON.parse(decodeURIComponent(m[1].replace(/\\+/g, ' ')));\n  } catch (e) {\n    return null;\n  }\n}\n\n// click: the raw body and Slack's two headers (Raw body node) plus `sig`, the HMAC the Sign node computed.\nfunction verifyAndRoute(click, nowMs, allowedUser) {\n  const ts = Number(click.ts);\n  if (!Number.isFinite(ts) || Math.abs(nowMs / 1000 - ts) > MAX_AGE_S) return { ok: false, reason: 'stale timestamp' };\n  if (!click.sig || !sameText(click.signature, 'v0=' + click.sig)) return { ok: false, reason: 'bad signature' };\n  const p = parsePayload(click.raw);\n  if (!p || p.type !== 'block_actions' || !Array.isArray(p.actions) || !p.actions.length) {\n    return { ok: false, reason: 'not a button click' };\n  }\n  const user = (p.user || {}).id;\n  if (user !== allowedUser) return { ok: false, reason: 'not the allowed user' };\n  const action = p.actions[0];\n  const outcome = OUTCOMES[action.action_id];\n  if (!outcome) return { ok: false, reason: 'unknown button' };\n  return {\n    ok: true,\n    response_url: p.response_url,\n    event: {\n      id: `${action.action_ts}-${user}`,\n      request: action.value,\n      outcome,\n      by: user,\n      at: new Date(nowMs).toISOString(),\n    },\n  };\n}\n\nfunction buildReply(route) {\n  const e = route.event;\n  return { replace_original: true, text: `Request ${e.request} ${e.outcome} by <@${e.by}>.` };\n}\n\n// One entry point per Code node.\nasync function nodeRawBody(items, helpers) {\n  const h = items[0].json.headers || {};\n  const raw = (await helpers.getBinaryDataBuffer(0, 'data')).toString('utf8');\n  return [{ json: { raw, ts: h['x-slack-request-timestamp'] || '', signature: h['x-slack-signature'] || '' } }];\n}\n\nfunction nodeVerifyRoute(items, nowMs, allowedUser) {\n  return [{ json: verifyAndRoute(items[0].json, nowMs, allowedUser) }];\n}\n\nfunction nodeBuildReply(route) {\n  return [{ json: buildReply(route) }];\n}\n\nreturn nodeBuildReply($('Verify+route').first().json);\n"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "name": "Update card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Verify+route').first().json.response_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Slack click": {
+      "main": [
+        [
+          {
+            "node": "Ack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ack": {
+      "main": [
+        [
+          {
+            "node": "Raw body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raw body": {
+      "main": [
+        [
+          {
+            "node": "Sign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign": {
+      "main": [
+        [
+          {
+            "node": "Verify+route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify+route": {
+      "main": [
+        [
+          {
+            "node": "Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "node": "Save event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Save event": {
+      "main": [
+        [
+          {
+            "node": "Build reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build reply": {
+      "main": [
+        [
+          {
+            "node": "Update card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none"
+  }
+}
