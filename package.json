@@ -4,12 +4,15 @@
   "private": true,
   "description": "A tested n8n workflow: Code-node JavaScript in files, workflow JSON checks, signed click replay and a deploy script.",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node --test \"test/*.test.mjs\"",
     "build": "node scripts/build.mjs",
     "check": "node scripts/build.mjs --check",
     "deploy": "node scripts/deploy.mjs",
     "replay": "node scripts/replay.mjs"
-  }
+  },
+  "license": "MIT"
 }

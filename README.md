@@ -53,4 +53,4 @@ npm run replay -- --url https://your-n8n.example/webhook/approve-click --events-
 - `--events-dir` needs your events endpoint to write one file per event into a folder the script can read.
 - The deploy puts the signing secret into the Sign node's settings, so anyone who can edit the workflow in n8n can read it.
 
-Built by [Manveen Singh](https://manveen.me)
+Built by [Manveen Singh](https://manveen.me). MIT licence (see LICENSE).
