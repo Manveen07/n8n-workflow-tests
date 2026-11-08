@@ -42,14 +42,14 @@ Against your own n8n, copy `.env.example` to `.env` and fill in `N8N_URL`, `N8N_
 
 ```
 npm run deploy -- --dry-run    # what would be sent, values shown as <NAME from .env>
-npm run deploy                 # create or update "Approve click"
-npm run replay -- --url https://your-n8n.example/webhook/approve-click --events-dir DIR
+npm run deploy                 # create or update "Approve click", then switch it on in n8n (deploy doesn't)
+npm run replay -- --url https://your-n8n.example/webhook/approve-click --events-dir DIR [--fixture FILE] [--bad-sig]
 ```
 
 ## Limits
 
 - A toy: one pair of buttons, one allowed user, no retry if the events API is down.
-- The tests don't run n8n itself: `test/helpers/` stands in for the six node types the workflow uses. This workflow hasn't been imported into a live n8n yet.
+- The tests don't run n8n itself: `test/helpers/` stands in for the six node types the workflow uses. On 9 Nov 2026 it also ran in a real n8n (2.46.6, local): a signed click wrote one event, a wrong signature and a click from another user wrote none, and a second deploy updated it by name.
 - `--events-dir` needs your events endpoint to write one file per event into a folder the script can read.
 - The deploy puts the signing secret into the Sign node's settings, so anyone who can edit the workflow in n8n can read it.
 
